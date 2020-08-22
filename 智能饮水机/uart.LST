@@ -1,0 +1,88 @@
+C51 COMPILER V9.54   UART                                                                  04/26/2020 16:39:54 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE UART
+OBJECT MODULE PLACED IN uart.OBJ
+COMPILER INVOKED BY: D:\keilARM\C51\BIN\C51.EXE uart.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND TABS(2)
+
+line level    source
+
+   1          #include "uart.h"
+   2          
+   3          // unsigned char RX_Buffer[30];
+   4          // unsigned char Num = 0;
+   5          // bit Flag_Receive_OK = 0;
+   6          
+   7          
+   8          void Uart_Init()                     
+   9          {
+  10   1        SCON=0x50;/*SCON:模式1,8-bitUART,使能接收*/
+  11   1        TMOD=0x20;/*TMOD:timer1,mode2, 8-bitreload*/
+  12   1        TH1=0xfd;/*TH1:reloadvaluefor9600baud@11.0592MHz*/
+  13   1        TL1=0xfd;
+  14   1        TR1=1;//启动定时器T1
+  15   1        EA=1;//打开总中断
+  16   1        ES=1;//打开串口中断
+  17   1      }
+  18          
+  19          void Send_Word(unsigned char *p)        //发送字符串
+  20          { 
+  21   1        while(*p)
+  22   1        {
+  23   2          SBUF=*(p++);
+  24   2          while(TI==0)
+  25   2          {
+  26   3            ;
+  27   3            ;
+  28   3            ;
+  29   3          };
+  30   2          TI=0;
+  31   2        }   
+  32   1      }
+  33          
+  34          void Send_ASCII(unsigned char c)        //发送一个字符
+  35          { 
+  36   1          TI=0;   
+  37   1          SBUF=c;   
+  38   1          while(TI==0);   
+  39   1          TI=0;   
+  40   1      }
+  41          
+  42          
+  43          
+  44          
+  45          
+  46          
+  47          
+  48          
+  49          
+  50          
+  51          
+  52          
+  53          
+  54          
+  55          
+C51 COMPILER V9.54   UART                                                                  04/26/2020 16:39:54 PAGE 2   
+
+  56          
+  57          
+  58          
+  59          
+  60          
+  61          
+  62          
+  63          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     69    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----       3
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

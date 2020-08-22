@@ -1,0 +1,485 @@
+C51 COMPILER V9.54   MAIN                                                                  04/27/2020 16:11:49 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN main.OBJ
+COMPILER INVOKED BY: D:\keilARM\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND TABS(2)
+
+line level    source
+
+   1          ///////////////////////////////////////////////////////
+   2          //基于51的智能饮水机
+   3          /*模块及接线：
+   4          DS1302
+   5                DAT P3^3;
+   6                RST P3^5;
+   7                CLK P3^6;
+   8                VCC 5V
+   9                GND GND
+  10          ISD1820
+  11                VCC 5V
+  12                GND GND
+  13                P-E P1^1
+  14          DS18B20
+  15                VCC 5V
+  16                GND GNd
+  17                DQ  P3^7
+  18          继电器
+  19                VCC 5V
+  20                GND GND
+  21                S   P2^4
+  22          HX711称重模块
+  23                VCC 5V
+  24                GND GND
+  25                DT  P2^1
+  26                SCK P2^0
+  27          LED 黄色 P1^2
+  28              绿色 P1^3
+  29              红色 P1^4
+  30          
+  31          */
+  32          ///////////////////////////////////////////////////////
+  33          
+  34          
+  35          
+  36          #include "ds1302.h"
+  37          #include "main.h"
+  38          #include "HX711.h"
+  39          #include "uart.h"
+  40          #include "LCD1602.h"
+  41          #include "temp.h"
+  42          #define GapValue 390
+  43          #define   uchar unsigned char
+  44          #define   uint unsigned int
+  45            
+  46          unsigned long HX711_Buffer = 0;
+  47          unsigned long Weight_Maopi = 0;
+  48          long Weight_Shiwu = 0;
+  49          unsigned char flag = 0;
+  50          bit Flag_ERROR = 0;
+  51          bit Flag_send = 0;
+  52          sbit speak= P3^5;
+  53          unsigned char a;
+  54          
+  55          uint e,i,l,q,c,b,g,h,i,f,j,wendu=30,min=0;
+C51 COMPILER V9.54   MAIN                                                                  04/27/2020 16:11:49 PAGE 2   
+
+  56          uint time_1=0,zh_1,zh_2;
+  57          uchar smg[10]={'0','1','2','3','4','5','6','7','8','9'};
+  58          uchar smg1[1]={'-'};
+  59          unsigned char datas[] = {0, 0, 0, 0, 0}; 
+  60          uchar time1[7];
+  61          
+  62          //校准参数
+  63          //因为不同的传感器特性曲线不是很一致，因此，每一个传感器需要矫正这里这个参数才能使测量值很准确。
+  64          //当发现测试出来的重量偏大时，增加该数值。
+  65          //如果测试出来的重量偏小时，减小改数值。
+  66          //该值可以为小数
+  67          
+  68          sbit LED=P2^1;
+  69          sbit k1=P1^5;  //定义P15口是k1
+  70          sbit k2=P1^6;
+  71          sbit k3=P1^7;
+  72          sbit LED1=P1^4;
+  73          sbit LED2=P1^3;
+  74          sbit LED3=P1^2;
+  75          sbit PE=P1^1;
+  76          sbit relay=P2^4;
+  77          
+  78          uchar bcd_to_hex(uchar dat1)
+  79          {
+  80   1        uchar temp;
+  81   1        temp=((dat1>>4)*10+(dat1&0x0f));
+  82   1        return temp;
+  83   1      }
+  84          
+  85          //uchar hex_to_bcd(uchar dat2)
+  86          //{
+  87          //  uchar temp;
+  88          //  temp=(((dat2/10)<<4)+(dat2%10));
+  89          //  return temp;
+  90          //}
+  91          
+  92          
+  93          void datapros() 
+  94          {
+  95   1        Ds1302ReadTime();
+  96   1        
+  97   1        e=bcd_to_hex(TIME[2])/10;
+  98   1        i=bcd_to_hex(TIME[2])%10;
+  99   1        
+ 100   1        l=bcd_to_hex(TIME[1])/10;
+ 101   1        q=bcd_to_hex(TIME[1])%10;
+ 102   1        if(q-min==1)
+ 103   1          time_1++;
+ 104   1        min=q;
+ 105   1        c=bcd_to_hex(TIME[0])/10;
+ 106   1        b=bcd_to_hex(TIME[0])%10;
+ 107   1        
+ 108   1        
+ 109   1      //  LCD1602_write_com(0x80+0x40+7);
+ 110   1      //  LCD1602_write_data(smg[e]);
+ 111   1      //  LCD1602_delay_ms(1); 
+ 112   1      //  
+ 113   1      //  LCD1602_write_com(0x80+0x40+8);
+ 114   1      //  LCD1602_write_data(smg[i]);
+ 115   1      //  LCD1602_delay_ms(1); 
+ 116   1      //  
+ 117   1      //  LCD1602_write_com(0x80+0x40+9);
+C51 COMPILER V9.54   MAIN                                                                  04/27/2020 16:11:49 PAGE 3   
+
+ 118   1      //  LCD1602_write_data(smg1[0]);
+ 119   1      //  LCD1602_delay_ms(1); 
+ 120   1      //  
+ 121   1      //  LCD1602_write_com(0x80+0x40+10);
+ 122   1      //  LCD1602_write_data(smg[l]);
+ 123   1      //  LCD1602_delay_ms(1); 
+ 124   1      //  
+ 125   1      //  LCD1602_write_com(0x80+0x40+11);
+ 126   1      //  LCD1602_write_data(smg[q]);
+ 127   1      //  LCD1602_delay_ms(1); 
+ 128   1      //  
+ 129   1      //  LCD1602_write_com(0x80+0x40+12);
+ 130   1      //  LCD1602_write_data(smg1[0]);
+ 131   1      //  LCD1602_delay_ms(1); 
+ 132   1      //  
+ 133   1      //  LCD1602_write_com(0x80+0x40+13);
+ 134   1      //  LCD1602_write_data(smg[c]);
+ 135   1      //  LCD1602_delay_ms(1); 
+ 136   1      //  
+ 137   1      //  LCD1602_write_com(0x80+0x40+14);
+ 138   1      //  LCD1602_write_data(smg[b]);
+ 139   1      //  LCD1602_delay_ms(1); 
+ 140   1        LCD1602_write_com(0x80+0x40+15);
+ 141   1        LCD1602_write_data(smg[time_1]);
+ 142   1        LCD1602_delay_ms(1); 
+ 143   1        
+ 144   1      }
+ 145          
+ 146          void keypros()
+ 147          {
+ 148   1      
+ 149   1        if(k1==0)     //输入密码
+ 150   1        { 
+ 151   2          LCD1602_delay_ms(10);
+ 152   2          if(k1==0)  //再次判断按键是否按下
+ 153   2          {
+ 154   3            wendu++;
+ 155   3            LCD1602_write_com(0x80+0x40+13);
+ 156   3            LCD1602_write_data(smg[c]);
+ 157   3            LCD1602_delay_ms(1); 
+ 158   3            LCD1602_write_com(0x80+0x40+13);
+ 159   3            LCD1602_write_data(smg[c]);
+ 160   3            LCD1602_delay_ms(1); 
+ 161   3          }
+ 162   2          while(!k1);  //检测按键是否松开
+ 163   2        }   
+ 164   1        if(k2==0)     //设置密码
+ 165   1        { 
+ 166   2          LCD1602_delay_ms(10);
+ 167   2          if(k2==0)  //再次判断按键是否按下
+ 168   2          {
+ 169   3            wendu--;
+ 170   3          }
+ 171   2          while(!k2);  //检测按键是否松开
+ 172   2        }   
+ 173   1        if(k3==0)     //输入管理员密码
+ 174   1        { 
+ 175   2          LCD1602_delay_ms(10);  //消除抖动 一般大约10ms
+ 176   2          if(k3==0)  //再次判断按键是否按下
+ 177   2          {
+ 178   3            LCD1602_write_com(0x80+0x40+12);
+ 179   3            LCD1602_write_data('O');
+C51 COMPILER V9.54   MAIN                                                                  04/27/2020 16:11:49 PAGE 4   
+
+ 180   3            LCD1602_delay_ms(1); 
+ 181   3            LCD1602_write_com(0x80+0x40+13);
+ 182   3            LCD1602_write_data('K');
+ 183   3            LCD1602_delay_ms(1000); 
+ 184   3            LCD1602_delay_ms(1000); 
+ 185   3          }
+ 186   2          while(!k3);  //检测按键是否松开
+ 187   2        }   
+ 188   1        LCD1602_write_com(0x80+0x40+12);
+ 189   1        LCD1602_write_data(smg[wendu/10]);
+ 190   1        LCD1602_delay_ms(1); 
+ 191   1        LCD1602_write_com(0x80+0x40+13);
+ 192   1        LCD1602_write_data(smg[wendu%10]);
+ 193   1        LCD1602_delay_ms(1); 
+ 194   1      }
+ 195          
+ 196          void LcdDisplay(int temp)    //lcd显示
+ 197          {
+ 198   1        float tp;  
+ 199   1        if(temp< 0)       //当温度值为负数
+ 200   1          {
+ 201   2            LCD1602_write_com(0x87);    //写地址 80表示初始地址
+ 202   2          SBUF='-';//将接收到的数据放入到发送寄存器
+ 203   2          while(!TI);              //等待发送数据完成
+ 204   2          TI=0;            //清除发送完成标志位
+ 205   2           LCD1602_write_data('-');     //显示负
+ 206   2          //因为读取的温度是实际温度的补码，所以减1，再取反求出原码
+ 207   2          temp=temp-1;
+ 208   2          temp=~temp;
+ 209   2          tp=temp;
+ 210   2          temp=tp*0.0625*100+0.5; 
+ 211   2          //留两个小数点就*100，+0.5是四舍五入，因为C语言浮点数转换为整型的时候把小数点
+ 212   2          //后面的数自动去掉，不管是否大于0.5，而+0.5之后大于0.5的就是进1了，小于0.5的就
+ 213   2          //算由?.5，还是在小数点后面。
+ 214   2       
+ 215   2          }
+ 216   1        else
+ 217   1          {     
+ 218   2            LCD1602_write_com(0x87);    //写地址 80表示初始地址
+ 219   2            LCD1602_write_data(' ');    //显示正
+ 220   2          SBUF='+';//将接收到的数据放入到发送寄存器
+ 221   2          while(!TI);              //等待发送数据完成
+ 222   2          TI=0;            //清除发送完成标志位
+ 223   2          tp=temp;//因为数据处理有小数点所以将温度赋给一个浮点型变量
+ 224   2          //如果温度是正的那么，那么正数的原码就是补码它本身
+ 225   2          temp=tp*0.0625*100+0.5; 
+ 226   2          //留两个小数点就*100，+0.5是四舍五入，因为C语言浮点数转换为整型的时候把小数点
+ 227   2          //后面的数自动去掉，不管是否大于0.5，而+0.5之后大于0.5的就是进1了，小于0.5的就
+ 228   2          //算加上0.5，还是在小数点后面。
+ 229   2        }
+ 230   1        datas[0] = temp / 10000;
+ 231   1        datas[1] = temp % 10000 / 1000;
+ 232   1        datas[2] = temp % 1000 / 100;
+ 233   1        datas[3] = temp % 100 / 10;
+ 234   1        datas[4] = temp % 10;
+ 235   1        
+ 236   1        
+ 237   1        LCD1602_write_com(0x80+8);     //写地址 80表示初始地址
+ 238   1        LCD1602_write_data('0'+datas[1]); //十位
+ 239   1        
+ 240   1      
+ 241   1        LCD1602_write_com(0x80+9);    //写地址 80表示初始地址
+C51 COMPILER V9.54   MAIN                                                                  04/27/2020 16:11:49 PAGE 5   
+
+ 242   1        LCD1602_write_data('0'+datas[2]); //个位 
+ 243   1        
+ 244   1      
+ 245   1        LCD1602_write_com(0x80+10);   //写地址 80表示初始地址
+ 246   1        LCD1602_write_data('.');    //显示 ‘.’
+ 247   1        
+ 248   1      
+ 249   1        LCD1602_write_com(0x80+11);    //写地址 80表示初始地址
+ 250   1        LCD1602_write_data('0'+datas[3]); //显示小数点  
+ 251   1        
+ 252   1      
+ 253   1        LCD1602_write_com(0x80+12);    //写地址 80表示初始地址
+ 254   1        LCD1602_write_data('0'+datas[4]); //显示小数点 
+ 255   1      
+ 256   1         
+ 257   1      }
+ 258          
+ 259          
+ 260          
+ 261          //****************************************************
+ 262          //主函数
+ 263          //****************************************************
+ 264          void main()
+ 265          {
+ 266   1        Uart_Init();
+ 267   1        Send_Word("Welcome to use!\n");
+ 268   1      
+ 269   1        Init_LCD1602();
+ 270   1        Ds1302Init();
+ 271   1        LCD1602_write_com(0x80);
+ 272   1        LCD1602_write_word("Wendu:");
+ 273   1        LCD1602_write_com(0x80+0x40);
+ 274   1        LCD1602_write_word("Set wendu:");
+ 275   1        Delay_ms(1000);    //延时,等待传感器稳定
+ 276   1      
+ 277   1        Get_Maopi();        //称毛皮重量
+ 278   1        
+ 279   1        while(1)
+ 280   1        {
+ 281   2          LED3=1;
+ 282   2          PE=1;
+ 283   2          if(RI == 1)
+ 284   2          {
+ 285   3            a=SBUF;//获取接收数据
+ 286   3            RI = 0;    //
+ 287   3            switch (a)
+ 288   3            {
+ 289   4              case 'a':
+ 290   4              Get_Weight();
+ 291   4              Send_ASCII(Weight_Shiwu/1000 + 0X30);
+ 292   4              Send_ASCII(Weight_Shiwu%1000/100 + 0X30);
+ 293   4              Send_ASCII(Weight_Shiwu%100/10 + 0X30);
+ 294   4              Send_ASCII(Weight_Shiwu%10 + 0X30);
+ 295   4              Send_Word("g-");
+ 296   4              break;  
+ 297   4              case 'b':
+ 298   4                Get_Maopi();
+ 299   4                break;
+ 300   4              case 'c':
+ 301   4                Flag_send=1;
+ 302   4                break;
+ 303   4              case 'd':
+C51 COMPILER V9.54   MAIN                                                                  04/27/2020 16:11:49 PAGE 6   
+
+ 304   4                Flag_send=0;
+ 305   4                break;
+ 306   4            }
+ 307   3          }
+ 308   2            
+ 309   2          Get_Weight();     //称重
+ 310   2      
+ 311   2          Scan_Key();
+ 312   2      
+ 313   2          //显示当前重量
+ 314   2          if( Flag_ERROR == 1)
+ 315   2          {
+ 316   3                  Send_Word("ERROR\n");
+ 317   3            
+ 318   3            LCD1602_write_com(0x80+0x40);
+ 319   3            LCD1602_write_word("ERROR ");
+ 320   3            speak=0;
+ 321   3          }   
+ 322   2          else
+ 323   2          {         
+ 324   3            speak=1;
+ 325   3      //            LCD1602_write_com(0x80+0x40);
+ 326   3      //            LCD1602_write_data(Weight_Shiwu/1000 + 0X30);
+ 327   3      //            LCD1602_write_data(Weight_Shiwu%1000/100 + 0X30);
+ 328   3      //            if((zh_1-Weight_Shiwu%1000/100)==1)
+ 329   3      //              zh_2=1;
+ 330   3      //            zh_1=Weight_Shiwu%1000/100;
+ 331   3      //            LCD1602_write_data(Weight_Shiwu%100/10 + 0X30);
+ 332   3      //            LCD1602_write_data(Weight_Shiwu%10 + 0X30);
+ 333   3      //            LCD1602_write_word(" g");
+ 334   3            if( Flag_send == 1)
+ 335   3            {
+ 336   4              Send_ASCII(Weight_Shiwu/1000 + 0X30);
+ 337   4              Send_ASCII(Weight_Shiwu%1000/100 + 0X30);
+ 338   4              Send_ASCII(Weight_Shiwu%100/10 + 0X30);
+ 339   4              Send_ASCII(Weight_Shiwu%10 + 0X30);
+ 340   4              Send_Word("g-");
+ 341   4            }
+ 342   3                  
+ 343   3          }
+ 344   2        datapros();
+ 345   2        keypros();
+ 346   2        LcdDisplay(Ds18b20ReadTemp());
+ 347   2          if(datas[1]*10+datas[2]>=wendu)
+ 348   2          {
+ 349   3            relay=0;
+ 350   3            LED2=1;
+ 351   3            LED1=0;
+ 352   3          }
+ 353   2          else
+ 354   2          {
+ 355   3            relay=1;
+ 356   3            LED2=0;
+ 357   3            LED1=1;
+ 358   3          }
+ 359   2          if((zh_1-Weight_Shiwu%1000/100)==1)
+ 360   2            zh_2=1;
+ 361   2          zh_1=Weight_Shiwu%1000/100;
+ 362   2          if(zh_2==1)
+ 363   2          {
+ 364   3            zh_2=0;
+ 365   3            time_1=0;
+C51 COMPILER V9.54   MAIN                                                                  04/27/2020 16:11:49 PAGE 7   
+
+ 366   3          }
+ 367   2          if((e*10+i)<21&&(e*10+i)>6) //早上6点至晚上九点工作
+ 368   2          {
+ 369   3            if(time_1>2)   //3分钟提醒一次
+ 370   3            {
+ 371   4              time_1=0;
+ 372   4              for(i=0;i<3;i++)
+ 373   4              {
+ 374   5              PE=0;
+ 375   5              Delay_ms(1000);
+ 376   5            
+ 377   5              PE=1;
+ 378   5              Delay_ms(1000);
+ 379   5                Delay_ms(1000);
+ 380   5                Delay_ms(1000);
+ 381   5                Delay_ms(1000);
+ 382   5              }
+ 383   4            }
+ 384   3          }
+ 385   2          
+ 386   2        }
+ 387   1      }
+ 388          
+ 389          //扫描按键
+ 390          void Scan_Key()
+ 391          {
+ 392   1        if(KEY1 == 0)
+ 393   1        {
+ 394   2          Delay_ms(5);
+ 395   2          if(KEY1 == 0)
+ 396   2          {
+ 397   3            while(KEY1 == 0);
+ 398   3              Get_Maopi();
+ 399   3          } 
+ 400   2        }
+ 401   1      }
+ 402          
+ 403          //****************************************************
+ 404          //称重
+ 405          //****************************************************
+ 406          void Get_Weight()
+ 407          {
+ 408   1        Weight_Shiwu = HX711_Read();
+ 409   1        Weight_Shiwu = Weight_Shiwu - Weight_Maopi;   //获取净重
+ 410   1        if(Weight_Shiwu > 0)      
+ 411   1        { 
+ 412   2          Weight_Shiwu = (unsigned int)((float)Weight_Shiwu/GapValue);  //计算实物的实际重量
+ 413   2                                          
+ 414   2                                          
+ 415   2          if(Weight_Shiwu > 5000)   //超重报警
+ 416   2          {
+ 417   3            Flag_ERROR = 1; 
+ 418   3          }
+ 419   2          else
+ 420   2          {
+ 421   3            Flag_ERROR = 0;
+ 422   3          }
+ 423   2        }
+ 424   1        else
+ 425   1        {
+ 426   2          Weight_Shiwu = 0;
+ 427   2        //  Flag_ERROR = 1;       //负重报警
+C51 COMPILER V9.54   MAIN                                                                  04/27/2020 16:11:49 PAGE 8   
+
+ 428   2        }
+ 429   1        
+ 430   1      }
+ 431          
+ 432          //****************************************************
+ 433          //获取毛皮重量
+ 434          //****************************************************
+ 435          void Get_Maopi()
+ 436          {
+ 437   1        Weight_Maopi = HX711_Read();  
+ 438   1      } 
+ 439          
+ 440          //****************************************************
+ 441          //MS延时函数(12M晶振下测试)
+ 442          //****************************************************
+ 443          void Delay_ms(unsigned int n)
+ 444          {
+ 445   1        unsigned int  i,j;
+ 446   1        for(i=0;i<n;i++)
+ 447   1          for(j=0;j<123;j++);
+ 448   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1580    ----
+   CONSTANT SIZE    =     52    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     67       6
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      2    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
